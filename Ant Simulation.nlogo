@@ -1,5 +1,5 @@
 globals [ ants-left nest-food ] ; The amount of ants that have left the nest at a time
-turtles-own [ food-bool neighbors-list ] ; If an ant is holding a piece of food
+turtles-own [ food-bool neighbors-list headed-home ] ; If an ant is holding a piece of food
 patches-own [ pheromone-lvl food-lvl ] ; The level of pheromone on a given patch
 
 ; Sets board up
@@ -54,65 +54,136 @@ to setup-ants
     set shape "bug"
     set color red
     set food-bool false
+    set headed-home false
   ]
 
 end
+
 
 
 ; Moves the ants in a wiggle direction, as long as they are able to leave from the nest
 to move-ants
   ask turtles [
-    ; If an ant is not carrying food, then move like a pleb
-    ifelse food-bool = false [
-      ; Moves ants forward (if they arent in a nest)
-      ifelse distance (patch-at 0 0) > 0 [
-        set neighbors-list sort-by neighbors-to-numbers neighbors
-        let patch1 item 0 neighbors-list
-        let patch2 item 1 neighbors-list
-        ; Returns the result of the equation
-        let result-patch (0.5 * (1 +
-          ( ((e ^ (2 * ((((pheromone-lvl of patch1) + (pheromone-lvl of patch2)) / 100) - 1) )
-            ) - 1) / ((e ^ (2 * ((((pheromone-lvl of patch1) + (pheromone-lvl of patch2)) / 100) - 1) )
-              ) + 1) )
-          )) * 100
-        ifelse random 100 < result-patch [
-          face result-patch
-          wiggle
-          fd 1
+
+    if headed-home = true and (distance (patch 0 0 ) <= .5 ) [ set headed-home false ]
+      ; If an ant is not carrying food, then move like a it based on pheromone equation
+      ifelse food-bool = false [
+
+        ; Moves ants forward (if they arent in a nest)
+        ifelse (distance (patch-at 0 0) > 0) and headed-home = false [
+          set neighbors-list sort-by neighbors-to-numbers neighbors
+          ; Sets the two patches as the two furthest from the nest (patch 0 0)
+          let patch1 item 0 neighbors-list
+          let patch2 item 1 neighbors-list
+          let patch3 item 2 neighbors-list
+          let patch4 item 3 neighbors-list
+          ; Returns the result of the equation of probablility of movement between the two furthest patches
+          let result-patch (0.5 * (1 + (((e ^ (2 * (((([pheromone-lvl] of patch1) + ([pheromone-lvl] of patch3)) / 100) - 1) )) - 1) / ((e ^ (2 * (((([pheromone-lvl] of patch1) + ([pheromone-lvl] of patch3)) / 100) - 1) )) + 1) ))) * 100
+          let result-patch2 (0.5 * (1 + (((e ^ (2 * (((([pheromone-lvl] of patch2) + ([pheromone-lvl] of patch4)) / 100) - 1) )) - 1) / ((e ^ (2 * (((([pheromone-lvl] of patch2) + ([pheromone-lvl] of patch4)) / 100) - 1) )) + 1) ))) * 100
+
+          ; Chooses the furthest patch based on pheromone-lvl and distance from nest
+          ifelse random 100 > 50 [
+            ifelse (random 100 < result-patch) [
+              let tmp false
+              ask patch1 [
+                if count turtles-here <= 20 [ set tmp true ]
+              ]
+              if tmp = true [
+                face patch1
+                wiggle
+                fd 1
+              ]
+            ]
+
+            ; Else statement that chooses the other patch
+            [
+              let tmp false
+              ask patch3 [
+                if count turtles-here <= 20 [ set tmp true ]
+              ]
+              if tmp = true [
+                face patch3
+                wiggle
+                fd 1
+              ]
+            ]
+          ]
+          ; Else statement
+          [
+            ifelse (random 100 < result-patch2) [
+            let tmp false
+            ask patch2 [
+              if count turtles-here <= 20 [ set tmp true ]
+            ]
+            if tmp = true [
+              face patch2
+              wiggle
+              fd 1
+            ]
+            ]
+
+            ; Else statement that chooses the other patch
+            [
+              let tmp false
+              ask patch4 [
+                if count turtles-here <= 20 [ set tmp true ]
+              ]
+              if tmp = true [
+                face patch4
+                wiggle
+                fd 1
+              ]
+            ]
+          ]
         ]
 
 
-      ]
-      ; Moves only 10 ants from the nest at a time.
-      [ if (distance (patch-at 0 0) = 0) and (ants-left > 0) [
-        wiggle
-        fd 1
-        set ants-left (ants-left - 1)
-      ]]
-    ]
-    ; If the ant is carrying food, then head back to the nest. If they are already at the nest, then drop food.
-    [
-      ; The case where the ant should head back
-      if (distance (patch 0 0)) >= .5 [
-        facexy 0 0
-        fd 1
-      ]
-      ; Else case in which the ant is holding food and on the nest.
-      if distance (patch 0 0) < .5 [
-        move-to patch 0 0
-        set color red
-        set nest-food (nest-food + 1)
-        set food-bool false
-      ]
-    ]
-  ]
+        ; These ants are on the nest
+        ; Moves only 10 ants from the nest at a time. (if on the nest)
+        [
+          if (distance (patch-at 0 0) = 0) and (ants-left > 0)
+          [
+            wiggle
+            fd 1
+            set ants-left (ants-left - 1)
+          ]
+        ]
 
-  ; Resets the amount of ants that can leave the nest
-  set ants-left 10
+        ; Moves stuck ants back to the nest
+        if ((distance (patch 0 0) >= 33) or headed-home = true) and food-bool = false [
+
+          set headed-home true
+          facexy 0 0
+          fd 1
+          set color orange
+        ]
+      ]
+
+      ; These ants are carrying food
+      ; If the ant is carrying food, then head back to the nest. If they are already at the nest, then drop food.
+      [
+        ; The case where the ant should head back
+        if (distance (patch 0 0)) >= .5 [
+          facexy 0 0
+          fd 1
+        ]
+        ; Else case in which the ant is holding food and on the nest.
+        if distance (patch 0 0) < .5 [
+          move-to patch 0 0
+          set color red
+          set nest-food (nest-food + 1)
+          set food-bool false
+          set headed-home false
+        ]
+      ]
+    ]
+
+    ; Resets the amount of ants that can leave the nest
+    set ants-left 10
 
 end
 
-; Used to tell the ants to pickup food if they arent carrying food.
+  ; Used to tell the ants to pickup food if they arent carrying food.
 to pickup-food
   ask turtles [
     let on-food false
@@ -133,12 +204,12 @@ to pickup-food
   ]
 end
 
-; Adds pheromone to patches for each ant.
+  ; Adds pheromone to patches for each ant.
 to add-pheromone
   ask turtles [
     ; 10 added while carrying
     if food-bool = true [
-      ask patch-here [ set pheromone-lvl (pheromone-lvl + 10) ]
+      ask patch-here [ set pheromone-lvl (pheromone-lvl + 50) ]
       ; Adds color distinguishing for ants carrying food
       set color blue
     ]
@@ -186,14 +257,14 @@ to patch-evap
   ask patches [set pheromone-lvl (pheromone-lvl - (pheromone-lvl / 30))]
 end
 
-; Ants that wiggle around to look more natural
+; Ants can wiggle around to look more natural
 to wiggle
   rt random 40
   lt random 40
   if not can-move? 1 [ rt 180 ]
 end
 
-; converts the neighboring patches to the numeric values associated with the distance from the nest
+; converts the neighboring patches to the numeric values associated with the distance from the nest for sorting
 to-report neighbors-to-numbers [temp-patch temp-patch2]
   let tmp 0
   let tmp2 0
@@ -211,18 +282,33 @@ to-report neighbors-to-numbers [temp-patch temp-patch2]
 end
 
 
-
+; Used to sort neighbors by pheromone level
+to-report neighbors-to-numbers-pheromone [temp-patch temp-patch2]
+  let tmp 0
+  let tmp2 0
+  let bool false
+  ask temp-patch [
+    set tmp pheromone-lvl
+  ]
+  ask temp-patch2 [
+    set tmp2 pheromone-lvl
+  ]
+  ifelse tmp > tmp2 [
+    report true
+  ]
+  [report false]
+end
 
 
 @#$#@#$#@
 GRAPHICS-WINDOW
 330
 59
-1001
-471
+848
+578
 -1
 -1
-13.0
+10.0
 1
 10
 1
@@ -234,8 +320,8 @@ GRAPHICS-WINDOW
 1
 -25
 25
--15
-15
+-25
+25
 0
 0
 1
@@ -285,17 +371,17 @@ number-of-ants
 number-of-ants
 0
 1000
-1.0
+1000.0
 1
 1
 Ants
 HORIZONTAL
 
 SWITCH
-60
-157
-234
-190
+129
+252
+303
+285
 Visualize-Pheromone?
 Visualize-Pheromone?
 0
@@ -303,10 +389,10 @@ Visualize-Pheromone?
 -1000
 
 MONITOR
-86
-283
-181
-328
+19
+247
+114
+292
 Collected Food
 nest-food
 1
@@ -314,45 +400,44 @@ nest-food
 11
 
 CHOOSER
-78
-216
-216
-261
+77
+194
+215
+239
 food-seed
 food-seed
 "distributed" "grouped"
-1
+0
 
 @#$#@#$#@
 ## WHAT IS IT?
 
-This model, named the hornet model, is meant to model hornet nest building. These hornets build nests by looking at patterns in the enviornment, then placing materials.
+This model, an ant simulation, is meant to emulate a model of pheromone dropping ants and how they collect food in raids.
 
 ## HOW IT WORKS
 
-Initially, this model spawns a set number of hornets. These hornets move randomly across the monitor. Each time they move, they look at the patches, which have been randomly assigned a color from black, blue or red, and check the ruleset given by the controller. If the hornet can pattern match the neighboring patch colors to any specified rules in the active ruleset, then the hornet will change the color of the patch that they are currently on, simulating placing a material, then continue to move.
+Initially, this model spawns a set number of ants. These ants move probalistically to one of the 4 furthest patches from the nest. They try to smell for the strongest pheromone level of the patches and tend to move to where the other ants have been. This allows for patterns to emerge (theoretically).
+
+If these ants happen to hit a corner, then move back to the nest. (to avoid them getting stuck)
 
 ## HOW TO USE IT
 
-The model is used quite simply. Firstly, set the desired amount of density, as well as a desired amount of hornets to spawn. Once both have been specified, select a ruleset, already coded into the simulation. If the user wishes, they can specify or edit an existing ruleset in the beginning of the code section. The format must be in the form of (list (list 1 2 3 4 5 6 7 8 ) 9), where 1-8 are the neighboring patches in this format:
+The model is used quite simply. Firstly, set the desired amount of and quantity. Then, decide between the two food placements, distributed or grouped foods. Then simply watch the ants gather food and bring it back towards the nest.
 
-		8 1 2
-		7 X 3
-		6 5 4
+Note: Red ants are "normal", blue ants are bringing back food and orange ants are headed home to avoid being stuck.
 
-And 9 is the patch that will be changed under the hornet.
 
 ## THINGS TO NOTICE
 
-Pay attention to the change in color density, as well as the interesting patterns that might take shape.
+Pay attention to the movement of the ants and the time it takes to find all the food. In testing, the distributed mode take approx. 300 ticks, and the grouped model takes about 2000 ticks.
 
 ## THINGS TO TRY
 
-Try experimenting with the density slider, as well as the number of hornets slider, and see how quickly the colors change. Aside from this, try creating new rulesets in the code section.
+Try experimenting the various modes and quantities of ants. Look at how quickly the food is gathered with these in mind.
 
 ## EXTENDING THE MODEL
 
-Add a potential rule randomizer, or rule creater in UI format. Also add more colors to represent new materials. Potentially change the way hornets see around them, to expand the complexity of the results.
+Fix the various issues with the formula provided. There seems to be a lack of focus on the pheromones, which causes massive grouping.
 
 ## NETLOGO FEATURES
 
@@ -360,13 +445,13 @@ Uses the sort and neighbor functions to get the neighboring cells. Aside from th
 
 ## RELATED MODELS
 
-Used movement features from sheep / wolf predation
+Used movement features from default ant simulation model 
 Used patch relations from brians brain model
+Used wiggle from ant simulation model
 
 ## CREDITS AND REFERENCES
 
-Created by Micheal Friesen, with resource use from CPSC 565 TA for the asymetric conversion of rulesets to symettrical versions.
-Large help from the Netlogo Documentation.
+Created by Micheal Friesen.
 @#$#@#$#@
 default
 true
